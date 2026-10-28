@@ -70,6 +70,16 @@
     <build>
         <pluginManagement>
             <plugins>
+                <!-- 启动模块保留普通 jar 作为主产物，额外生成可执行的 -exec.jar。 -->
+                <!-- 仅对显式声明此插件的模块生效，不影响 API、公共库和 starter。 -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring.boot.version}</version>
+                    <configuration>
+                        <classifier>exec</classifier>
+                    </configuration>
+                </plugin>
                 <!-- maven-surefire-plugin 插件，用于运行单元测试。 -->
                 <!-- 注意，需要使用 3.0.X+，因为要支持 Junit 5 版本 -->
                 <plugin>

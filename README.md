@@ -415,6 +415,60 @@
 | [JUnit](https://junit.org/junit5/)                                                          | Java 单元测试框架      | 5.12.2         | -                                                                   |
 | [Mockito](https://github.com/mockito/mockito)                                               | Java Mock 框架     | 5.17.0         | -                                                                   |
 
+## JAR 打包与模块引用
+
+使用 JDK 17 或以上版本，在项目根目录执行：
+
+```shell
+mvn clean package -DskipTests
+```
+
+所有启动模块（各业务 server、网关及 yudao-server）在各自的 `target` 目录同时生成两种产物：
+
+| 产物 | 用途 |
+| --- | --- |
+| `${artifactId}.jar` | 普通 JAR，类和资源位于标准路径，可作为其他模块的 Maven 依赖 |
+| `${artifactId}-exec.jar` | 可执行 JAR，包含运行依赖，用于 `java -jar` 启动和 Docker 部署 |
+
+API、公共库和 starter 模块仍只生成普通 JAR。安装到本地仓库时执行 `mvn clean install -DskipTests`；配置好发布仓库后，`mvn deploy -DskipTests` 同样会发布两种产物，其中可执行 JAR 的 classifier 为 `exec`。仓库中的文件名按 Maven 规则包含版本号。
+
+独立启动项目引用业务模块时，使用普通依赖声明，无需指定 classifier，版本与被引用模块保持一致。未继承本项目父 POM 的项目建议先导入同版本 BOM，统一传递依赖版本：
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>cn.iocoder.cloud</groupId>
+            <artifactId>yudao-dependencies</artifactId>
+            <version>2025.10-SNAPSHOT</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+然后在 `dependencies` 中添加所需业务模块：
+
+```xml
+<dependency>
+    <groupId>cn.iocoder.cloud</groupId>
+    <artifactId>yudao-module-system-server</artifactId>
+    <version>2025.10-SNAPSHOT</version>
+</dependency>
+```
+
+现有 `yudao-server` 对 system、infra 模块的依赖声明无需调整。只构建该启动模块及其依赖，并启动的示例：
+
+```shell
+mvn -pl yudao-server -am clean package -DskipTests
+java -jar yudao-server/target/yudao-server-exec.jar
+```
+
+启动时仍需准备对应环境的数据库、注册中心等配置。普通 JAR 支持依赖引用，不会自动处理多个服务合并启动时的配置、组件扫描或 Bean 冲突。
+
+**部署兼容性：** 原先用于启动的 `${artifactId}.jar` 现在是普通 JAR，启动命令必须改用 `${artifactId}-exec.jar`。仓库内 Dockerfile 已同步调整；仓库外部署脚本和流水线也需同步更新，避免使用 `*.jar` 匹配到两种产物。
+
 ## 🐷 演示图
 
 ### 系统功能
