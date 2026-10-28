@@ -6,7 +6,7 @@ FROM eclipse-temurin:25-jre
 RUN mkdir -p /yudao-module-bpm-server
 WORKDIR /yudao-module-bpm-server
 ## 将后端项目的 Jar 文件，复制到镜像中
-COPY ./target/yudao-module-bpm-server.jar app.jar
+COPY ./target/yudao-module-bpm-server-exec.jar app.jar
 
 ## 设置 TZ 时区
 ## 设置 JAVA_OPTS 环境变量，可通过 docker run -e "JAVA_OPTS=" 进行覆盖
