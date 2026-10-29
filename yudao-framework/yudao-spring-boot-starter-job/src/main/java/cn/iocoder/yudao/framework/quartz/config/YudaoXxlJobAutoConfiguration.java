@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @AutoConfiguration
 @ConditionalOnClass(XxlJobSpringExecutor.class)
+@ConditionalOnProperty(prefix = "yudao.job", name = "type", havingValue = "xxl", matchIfMissing = true)
 @ConditionalOnProperty(prefix = "xxl.job", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({XxlJobProperties.class})
 @EnableScheduling // 开启 Spring 自带的定时任务

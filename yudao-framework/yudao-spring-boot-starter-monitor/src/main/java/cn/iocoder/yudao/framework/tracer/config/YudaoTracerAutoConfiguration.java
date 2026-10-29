@@ -16,7 +16,6 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnClass(name = {
-        "org.apache.skywalking.apm.toolkit.opentracing.SkywalkingTracer", // 来自 apm-toolkit-opentracing.jar
 //        "io.opentracing.Tracer", // 来自 opentracing-api.jar
         "jakarta.servlet.Filter"
 })
