@@ -115,6 +115,28 @@ easy-trans:
 
 --- #################### 定时任务相关配置 ####################
 
+yudao:
+  job:
+    type: quartz # xxl / quartz / none；切换后重启生效
+
+spring:
+  quartz:
+    auto-startup: true
+    scheduler-name: yudaoScheduler
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    wait-for-jobs-to-complete-on-shutdown: true
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.class: org.springframework.scheduling.quartz.LocalDataSourceJobStore
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.clusterCheckinInterval: 15000
+      org.quartz.jobStore.misfireThreshold: 60000
+      org.quartz.threadPool.threadCount: 25
+      org.quartz.threadPool.threadPriority: 5
+
+
 xxl:
   job:
     executor:
