@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnClass(name = {
+//        "io.opentracing.Tracer", // 来自 opentracing-api.jar
         "io.opentelemetry.api.trace.Tracer", // 来自 opentelemetry-api.jar
         "jakarta.servlet.Filter"
 })

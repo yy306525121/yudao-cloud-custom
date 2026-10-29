@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
+cn.iocoder.yudao.framework.quartz.config.QuartzAutoConfigurationFilter
