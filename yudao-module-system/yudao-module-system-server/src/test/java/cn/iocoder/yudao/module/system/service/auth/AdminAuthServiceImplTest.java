@@ -264,6 +264,38 @@ public class AdminAuthServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testNgiamLoginDisabledUser() {
+        AuthSocialLoginReqVO req = new AuthSocialLoginReqVO(35, "ST-ticket", "state");
+        when(socialUserService.getSocialUserByCode(2, 35, "ST-ticket", "state"))
+                .thenReturn(new SocialUserRespDTO("Alice", "Alice", null, 1L));
+        when(userService.getUser(1L)).thenReturn(new AdminUserDO().setId(1L).setStatus(CommonStatusEnum.DISABLE.getStatus()));
+        assertServiceException(() -> authService.socialLogin(req), AUTH_LOGIN_USER_DISABLED);
+        verifyNoInteractions(oauth2TokenService);
+    }
+
+    @Test
+    public void testNgiamLoginMissingUser() {
+        AuthSocialLoginReqVO req = new AuthSocialLoginReqVO(35, "ST-ticket", "state");
+        when(socialUserService.getSocialUserByCode(2, 35, "ST-ticket", "state"))
+                .thenReturn(new SocialUserRespDTO("Alice", "Alice", null, 1L));
+        assertServiceException(() -> authService.socialLogin(req), USER_NOT_EXISTS);
+        verifyNoInteractions(oauth2TokenService);
+    }
+
+    @Test
+    public void testNgiamLoginReturnsSavedLocalPath() {
+        AuthSocialLoginReqVO req = new AuthSocialLoginReqVO(35, "ST-ticket", "state");
+        SocialUserRespDTO identity = new SocialUserRespDTO("Alice", "Alice", null, 1L);
+        identity.setRedirectPath("/system/menu?a=1");
+        when(socialUserService.getSocialUserByCode(2, 35, "ST-ticket", "state")).thenReturn(identity);
+        when(userService.getUser(1L)).thenReturn(new AdminUserDO().setId(1L).setUsername("localAlice")
+                .setStatus(CommonStatusEnum.ENABLE.getStatus()));
+        when(oauth2TokenService.createAccessToken(eq(1L), eq(2), eq("default"), isNull()))
+                .thenReturn(randomPojo(OAuth2AccessTokenDO.class));
+        assertEquals("/system/menu?a=1", authService.socialLogin(req).getRedirectPath());
+    }
+
+    @Test
     public void testValidateCaptcha_successWithEnable() {
         // 准备参数
         AuthLoginReqVO reqVO = randomPojo(AuthLoginReqVO.class);

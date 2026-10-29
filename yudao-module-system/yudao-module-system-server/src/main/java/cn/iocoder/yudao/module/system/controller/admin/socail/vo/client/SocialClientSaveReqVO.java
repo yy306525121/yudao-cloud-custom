@@ -34,21 +34,56 @@ public class SocialClientSaveReqVO {
     @InEnum(UserTypeEnum.class)
     private Integer userType;
 
-    @Schema(description = "客户端编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "wwd411c69a39ad2e54")
-    @NotNull(message = "客户端编号不能为空")
+    @Schema(description = "客户端编号，CAS 可选记录应用编码（不参与登录）", example = "ljsc")
     private String clientId;
 
-    @Schema(description = "客户端密钥", requiredMode = Schema.RequiredMode.REQUIRED, example = "peter")
-    @NotNull(message = "客户端密钥不能为空")
+    @Schema(description = "客户端密钥，CAS 不需要，其他平台必填", example = "peter")
     private String clientSecret;
 
     @Schema(description = "授权方的网页应用编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2000045")
     private String agentId;
 
+    @Schema(description = "IAM 对接地址，仅协议、主机及可选端口，例如 http://10.1.102.64:80")
+    private String casBaseUrl;
+    @Schema(description = "CAS 注册的固定前端回调地址")
+    private String casService;
+    @Schema(description = "CAS 请求超时毫秒，默认 5000，范围 100 到 60000")
+    private Integer casTimeoutMillis;
+
+
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "状态不能为空")
     @InEnum(CommonStatusEnum.class)
     private Integer status;
+
+    @AssertTrue(message = "客户端编号不能为空")
+    @JsonIgnore
+    public boolean isClientIdValid() {
+        return Objects.equals(socialType, SocialTypeEnum.NGIAM_CAS.getType()) || clientId != null;
+    }
+
+    @AssertTrue(message = "客户端密钥不能为空")
+    @JsonIgnore
+    public boolean isClientSecretValid() {
+        return Objects.equals(socialType, SocialTypeEnum.NGIAM_CAS.getType()) || clientSecret != null;
+    }
+
+    @AssertTrue(message = "CAS 仅支持管理端，且必须填写有效的对接地址、固定回调地址及超时（100-60000 毫秒）")
+    @JsonIgnore
+    public boolean isCasConfigValid() {
+        if (!Objects.equals(socialType, SocialTypeEnum.NGIAM_CAS.getType())) {
+            return true;
+        }
+        return Objects.equals(userType, UserTypeEnum.ADMIN.getValue())
+                && cn.iocoder.yudao.module.system.framework.justauth.core.ngiam.NgiamCasConfig.isBaseUrl(casBaseUrl)
+                && validCasUrl(casService)
+                && (casTimeoutMillis == null || (casTimeoutMillis >= 100 && casTimeoutMillis <= 60000));
+    }
+
+    private boolean validCasUrl(String url) {
+        return url != null && url.length() <= 2048
+                && cn.iocoder.yudao.module.system.framework.justauth.core.ngiam.NgiamCasConfig.isHttpUrl(url);
+    }
 
     @AssertTrue(message = "agentId 不能为空")
     @JsonIgnore

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.system.service.auth;
 
+import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import cn.hutool.core.util.ObjectUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
@@ -183,7 +184,13 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         }
 
         // 创建 Token 令牌，记录登录日志
-        return createTokenAfterLoginSuccess(user.getId(), user.getUsername(), LoginLogTypeEnum.LOGIN_SOCIAL);
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(reqVO.getType())
+                && CommonStatusEnum.isDisable(user.getStatus())) {
+            throw exception(AUTH_LOGIN_USER_DISABLED);
+        }
+        AuthLoginRespVO response = createTokenAfterLoginSuccess(user.getId(), user.getUsername(), LoginLogTypeEnum.LOGIN_SOCIAL);
+        response.setRedirectPath(socialUser.getRedirectPath());
+        return response;
     }
 
     @VisibleForTesting

@@ -42,6 +42,9 @@ import static org.mockito.Mockito.when;
 @Import(SocialUserServiceImpl.class)
 public class SocialUserServiceImplTest extends BaseDbUnitTest {
 
+    @MockitoBean
+    private NgiamCasService ngiamCasService;
+
     @Resource
     private SocialUserServiceImpl socialUserService;
 
@@ -52,6 +55,23 @@ public class SocialUserServiceImplTest extends BaseDbUnitTest {
 
     @MockitoBean
     private SocialClientService socialClientService;
+
+    @Test
+    public void testNgiamUsesOneTimeFlowInsteadOfLegacyAuthenticationCache() {
+        SocialUserRespDTO expected = new SocialUserRespDTO("Alice", "Alice", null, 1L);
+        when(ngiamCasService.login(2, "ST-ticket", "state")).thenReturn(expected);
+        assertEquals(expected, socialUserService.getSocialUserByCode(2, 35, "ST-ticket", "state"));
+        org.mockito.Mockito.verifyNoInteractions(socialClientService);
+    }
+
+    @Test
+    public void testNgiamCannotUseSelfBindingOrUnbinding() {
+        assertServiceException(() -> socialUserService.authSocialUser(35, 2, "ST-ticket", "state"),
+                cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.NGIAM_ADMIN_BIND_ONLY);
+        assertServiceException(() -> socialUserService.unbindSocialUser(1L, 2, 35, "Alice"),
+                cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.NGIAM_ADMIN_BIND_ONLY);
+        org.mockito.Mockito.verifyNoInteractions(socialClientService, ngiamCasService);
+    }
 
     @Test
     public void testGetSocialUserList() {
