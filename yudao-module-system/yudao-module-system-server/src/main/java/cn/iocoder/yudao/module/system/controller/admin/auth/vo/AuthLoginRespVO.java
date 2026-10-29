@@ -18,6 +18,9 @@ public class AuthLoginRespVO {
     @Schema(description = "用户编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private Long userId;
 
+    @Schema(description = "IAM 登录成功后的站内目标路径，其他登录方式为空")
+    private String redirectPath;
+
     @Schema(description = "访问令牌", requiredMode = Schema.RequiredMode.REQUIRED, example = "happy")
     private String accessToken;
 
@@ -26,5 +29,9 @@ public class AuthLoginRespVO {
 
     @Schema(description = "过期时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime expiresTime;
+
+    public AuthLoginRespVO(Long userId, String accessToken, String refreshToken, LocalDateTime expiresTime) {
+        this(userId, null, accessToken, refreshToken, expiresTime);
+    }
 
 }

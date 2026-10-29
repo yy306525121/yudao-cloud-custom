@@ -17,6 +17,9 @@
 
 package cn.iocoder.yudao.module.system.framework.justauth.core;
 
+import cn.iocoder.yudao.module.system.framework.justauth.core.ngiam.NgiamCasConfig;
+import cn.iocoder.yudao.module.system.framework.justauth.core.ngiam.NgiamCasRequest;
+
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.ReflectUtil;
@@ -57,6 +60,11 @@ import java.util.stream.Collectors;
 public class AuthRequestFactory {
     private final JustAuthProperties properties;
     private final AuthStateCache authStateCache;
+
+    /** Build a CAS adapter from a validated, tenant-specific DB configuration snapshot. */
+    public AuthRequest getNgiamCasRequest(NgiamCasConfig config) {
+        return new NgiamCasRequest(config);
+    }
 
     /**
      * 返回当前Oauth列表

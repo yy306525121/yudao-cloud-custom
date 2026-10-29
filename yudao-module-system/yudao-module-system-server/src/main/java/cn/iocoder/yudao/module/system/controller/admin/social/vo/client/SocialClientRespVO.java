@@ -33,6 +33,14 @@ public class SocialClientRespVO {
     @Schema(description = "publicKey 公钥", example = "2000045")
     private String publicKey;
 
+    @Schema(description = "IAM 对接地址，仅协议、主机及可选端口，例如 http://10.1.102.64:80")
+    private String casBaseUrl;
+    @Schema(description = "CAS 注册的固定前端回调地址")
+    private String casService;
+    @Schema(description = "CAS 请求超时毫秒，默认 5000，范围 100 到 60000")
+    private Integer casTimeoutMillis;
+
+
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer status;
 

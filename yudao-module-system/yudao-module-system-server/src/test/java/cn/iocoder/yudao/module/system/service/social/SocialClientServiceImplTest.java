@@ -55,6 +55,9 @@ import static org.mockito.Mockito.*;
 @Import(SocialClientServiceImpl.class)
 public class SocialClientServiceImplTest extends BaseDbUnitTest {
 
+    @MockitoBean
+    private NgiamCasService ngiamCasService;
+
     @Resource
     private SocialClientServiceImpl socialClientService;
 
@@ -395,11 +398,56 @@ public class SocialClientServiceImplTest extends BaseDbUnitTest {
 
     // =================== 客户端管理 ===================
 
+    private SocialClientSaveReqVO casApplication() {
+        return new SocialClientSaveReqVO().setName("公司 IAM").setSocialType(35).setUserType(2)
+                .setStatus(0)
+                .setCasBaseUrl("https://iam.example.com")
+                .setCasService("https://app.example.com/");
+    }
+
+    @Test
+    public void testCasConfigPersistenceAndImmediateUpdate() {
+        SocialClientSaveReqVO request = casApplication();
+        Long id = socialClientService.createSocialClient(request);
+        SocialClientDO saved = socialClientMapper.selectById(id);
+        assertEquals("", saved.getClientSecret());
+        assertEquals("", saved.getClientId());
+        assertEquals(5000, saved.getCasTimeoutMillis());
+        assertEquals(request.getCasService(), saved.getCasService());
+        assertEquals("https://iam.example.com", saved.getCasBaseUrl());
+        request.setId(id).setStatus(1).setCasTimeoutMillis(8000).setCasBaseUrl("http://10.1.102.64:80/").setCasService("https://app.example.com/callback");
+        socialClientService.updateSocialClient(request);
+        saved = socialClientMapper.selectById(id);
+        assertEquals(1, saved.getStatus());
+        assertEquals(8000, saved.getCasTimeoutMillis());
+        assertEquals("http://10.1.102.64:80/", saved.getCasBaseUrl());
+        assertEquals("https://app.example.com/callback", saved.getCasService());
+    }
+
+    @Test
+    public void testCasConditionalValidationAndLegacySecretRequirement() {
+        try (var validatorFactory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+            var validator = validatorFactory.getValidator();
+            SocialClientSaveReqVO request = casApplication();
+            assertTrue(validator.validate(request).isEmpty());
+            request.setUserType(1);
+            assertFalse(validator.validate(request).isEmpty());
+            request.setUserType(2).setCasBaseUrl("file:///etc/hosts");
+            assertFalse(validator.validate(request).isEmpty());
+            request.setCasBaseUrl("https://iam.example.com").setCasTimeoutMillis(0);
+            assertFalse(validator.validate(request).isEmpty());
+            request.setSocialType(10).setClientId(null).setClientSecret("secret");
+            assertFalse(validator.validate(request).isEmpty());
+            request.setClientId("legacy-app").setClientSecret(null);
+            assertFalse(validator.validate(request).isEmpty());
+        }
+    }
+
     @Test
     public void testCreateSocialClient_success() {
         // 准备参数
         SocialClientSaveReqVO reqVO = randomPojo(SocialClientSaveReqVO.class,
-                o -> o.setSocialType(randomEle(SocialTypeEnum.values()).getType())
+                o -> o.setSocialType(SocialTypeEnum.GITEE.getType())
                         .setUserType(randomEle(UserTypeEnum.values()).getValue())
                         .setStatus(randomCommonStatus()))
                 .setId(null); // 防止 id 被赋值
@@ -410,7 +458,7 @@ public class SocialClientServiceImplTest extends BaseDbUnitTest {
         assertNotNull(socialClientId);
         // 校验记录的属性是否正确
         SocialClientDO socialClient = socialClientMapper.selectById(socialClientId);
-        assertPojoEquals(reqVO, socialClient, "id");
+        assertPojoEquals(reqVO, socialClient, "id", "casBaseUrl", "casService", "casTimeoutMillis");
     }
 
     @Test
@@ -421,7 +469,7 @@ public class SocialClientServiceImplTest extends BaseDbUnitTest {
         // 准备参数
         SocialClientSaveReqVO reqVO = randomPojo(SocialClientSaveReqVO.class, o -> {
             o.setId(dbSocialClient.getId()); // 设置更新的 ID
-            o.setSocialType(randomEle(SocialTypeEnum.values()).getType())
+            o.setSocialType(SocialTypeEnum.GITEE.getType())
                     .setUserType(randomEle(UserTypeEnum.values()).getValue())
                     .setStatus(randomCommonStatus());
         });
@@ -430,7 +478,7 @@ public class SocialClientServiceImplTest extends BaseDbUnitTest {
         socialClientService.updateSocialClient(reqVO);
         // 校验是否更新正确
         SocialClientDO socialClient = socialClientMapper.selectById(reqVO.getId()); // 获取最新的
-        assertPojoEquals(reqVO, socialClient);
+        assertPojoEquals(reqVO, socialClient, "casBaseUrl", "casService", "casTimeoutMillis");
     }
 
     @Test
