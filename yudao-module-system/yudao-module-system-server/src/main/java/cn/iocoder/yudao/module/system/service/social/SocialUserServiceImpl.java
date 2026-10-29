@@ -27,6 +27,7 @@ import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionU
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 import static cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString;
 import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.SOCIAL_USER_NOT_FOUND;
+import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.NGIAM_ADMIN_BIND_ONLY;
 
 /**
  * 社交用户 Service 实现类
@@ -45,6 +46,8 @@ public class SocialUserServiceImpl implements SocialUserService {
 
     @Resource
     private SocialClientService socialClientService;
+    @Resource
+    private NgiamCasService ngiamCasService;
 
     @Override
     public List<SocialUserDO> getSocialUserList(Long userId, Integer userType) {
@@ -82,6 +85,9 @@ public class SocialUserServiceImpl implements SocialUserService {
 
     @Override
     public void unbindSocialUser(Long userId, Integer userType, Integer socialType, String openid) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(socialType)) {
+            throw exception(NGIAM_ADMIN_BIND_ONLY);
+        }
         // 获得 openid 对应的 SocialUserDO 社交用户
         SocialUserDO socialUser = socialUserMapper.selectByTypeAndOpenid(socialType, openid);
         if (socialUser == null) {
@@ -108,6 +114,9 @@ public class SocialUserServiceImpl implements SocialUserService {
 
     @Override
     public SocialUserRespDTO getSocialUserByCode(Integer userType, Integer socialType, String code, String state) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(socialType)) {
+            return ngiamCasService.login(userType, code, state);
+        }
         // 获得社交用户
         SocialUserDO socialUser = authSocialUser(socialType, userType, code, state);
         Assert.notNull(socialUser, "社交用户不能为空");
@@ -131,6 +140,9 @@ public class SocialUserServiceImpl implements SocialUserService {
      */
     @NotNull
     public SocialUserDO authSocialUser(Integer socialType, Integer userType, String code, String state) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(socialType)) {
+            throw exception(NGIAM_ADMIN_BIND_ONLY);
+        }
         // 优先从 DB 中获取，因为 code 有且可以使用一次。
         // 在社交登录时，当未绑定 User 时，需要绑定登录，此时需要 code 使用两次
         SocialUserDO socialUser = socialUserMapper.selectByTypeAndCodeAnState(socialType, code, state);

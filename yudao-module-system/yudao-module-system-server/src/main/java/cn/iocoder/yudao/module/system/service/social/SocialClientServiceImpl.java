@@ -166,9 +166,14 @@ public class SocialClientServiceImpl implements SocialClientService {
 
     @Resource
     private SocialClientMapper socialClientMapper;
+    @Resource
+    private NgiamCasService ngiamCasService;
 
     @Override
     public String getAuthorizeUrl(Integer socialType, Integer userType, String redirectUri) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(socialType)) {
+            return ngiamCasService.authorize(userType, redirectUri, "/");
+        }
         // 获得对应的 AuthRequest 实现
         AuthRequest authRequest = buildAuthRequest(socialType, userType);
         // 生成跳转地址
@@ -178,6 +183,9 @@ public class SocialClientServiceImpl implements SocialClientService {
 
     @Override
     public AuthUser getAuthUser(Integer socialType, Integer userType, String code, String state) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(socialType)) {
+            throw exception(NGIAM_ADMIN_BIND_ONLY);
+        }
         // 构建请求
         AuthRequest authRequest = buildAuthRequest(socialType, userType);
         AuthCallback authCallback = AuthCallback.builder().code(code).auth_code(code).state(state).build();
@@ -475,6 +483,7 @@ public class SocialClientServiceImpl implements SocialClientService {
 
         // 插入
         SocialClientDO client = BeanUtils.toBean(createReqVO, SocialClientDO.class);
+        normalizeCasConfig(client);
         socialClientMapper.insert(client);
         return client.getId();
     }
@@ -488,6 +497,7 @@ public class SocialClientServiceImpl implements SocialClientService {
 
         // 更新
         SocialClientDO updateObj = BeanUtils.toBean(updateReqVO, SocialClientDO.class);
+        normalizeCasConfig(updateObj);
         socialClientMapper.updateById(updateObj);
     }
 
@@ -502,6 +512,21 @@ public class SocialClientServiceImpl implements SocialClientService {
     @Override
     public void deleteSocialClientList(List<Long> ids) {
         socialClientMapper.deleteByIds(ids);
+    }
+
+    private void normalizeCasConfig(SocialClientDO client) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(client.getSocialType())) {
+            if (client.getClientId() == null) {
+                client.setClientId(""); // Optional appCode record; CAS login does not use this column.
+            }
+            client.setClientSecret("");
+            client.setAgentId("");
+            if (client.getCasTimeoutMillis() == null) {
+                client.setCasTimeoutMillis(5000);
+            }
+        } else {
+            client.setCasBaseUrl(null).setCasService(null).setCasTimeoutMillis(null);
+        }
     }
 
     private void validateSocialClientExists(Long id) {

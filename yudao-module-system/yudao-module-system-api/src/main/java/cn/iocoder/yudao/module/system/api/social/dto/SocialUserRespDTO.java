@@ -23,4 +23,11 @@ public class SocialUserRespDTO {
     @Schema(description = "关联的用户编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private Long userId;
 
+    @Schema(description = "IAM 登录成功后的站内目标路径")
+    private String redirectPath;
+
+    public SocialUserRespDTO(String openid, String nickname, String avatar, Long userId) {
+        this(openid, nickname, avatar, userId, null);
+    }
+
 }

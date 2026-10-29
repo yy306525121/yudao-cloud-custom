@@ -13,6 +13,11 @@ public interface ErrorCodeConstants {
     ErrorCode AUTH_LOGIN_BAD_CREDENTIALS = new ErrorCode(1_002_000_000, "登录失败，账号密码不正确");
     ErrorCode AUTH_LOGIN_USER_DISABLED = new ErrorCode(1_002_000_001, "登录失败，账号被禁用");
     ErrorCode AUTH_LOGIN_CAPTCHA_CODE_ERROR = new ErrorCode(1_002_000_004, "验证码不正确，原因：{}");
+    ErrorCode NGIAM_NOT_BOUND = new ErrorCode(1_002_018_100, "IAM 账户未绑定，请联系管理员");
+    ErrorCode NGIAM_BIND_CONFLICT = new ErrorCode(1_002_018_101, "IAM 账户或本地用户已存在其他绑定，请先解绑");
+    ErrorCode NGIAM_STATE_INVALID = new ErrorCode(1_002_018_102, "IAM 登录状态无效或已过期，请重新发起登录");
+    ErrorCode NGIAM_CONFIG_INVALID = new ErrorCode(1_002_018_103, "IAM 登录未启用或配置不完整");
+    ErrorCode NGIAM_ADMIN_BIND_ONLY = new ErrorCode(1_002_018_104, "IAM 账户请由管理员维护绑定");
     ErrorCode AUTH_THIRD_LOGIN_NOT_BIND = new ErrorCode(1_002_000_005, "未绑定账号，需要进行绑定");
     ErrorCode AUTH_MOBILE_NOT_EXISTS = new ErrorCode(1_002_000_007, "手机号不存在");
     ErrorCode AUTH_REGISTER_CAPTCHA_CODE_ERROR = new ErrorCode(1_002_000_008, "验证码不正确，原因：{}");

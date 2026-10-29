@@ -61,6 +61,10 @@ public enum SocialTypeEnum implements ArrayValuable<Integer> {
      * @see <a href="https://opendocs.alipay.com/mini/05dxgc?pathHash=1a3ecb13">接入文档</a>
      */
     ALIPAY_MINI_PROGRAM(40, "ALIPAY"),
+    /**
+     * 公司统一身份平台 CAS 登录
+     */
+    NGIAM_CAS(35, "NGIAM_CAS"),
     ;
 
     public static final Integer[] ARRAYS = Arrays.stream(values()).map(SocialTypeEnum::getType).toArray(Integer[]::new);

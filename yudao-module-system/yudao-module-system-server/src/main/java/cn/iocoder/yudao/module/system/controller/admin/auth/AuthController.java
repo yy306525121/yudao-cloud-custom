@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.system.controller.admin.auth;
 
+import cn.iocoder.yudao.module.system.service.social.NgiamCasService;
+import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.apilog.core.annotation.ApiAccessLog;
@@ -155,17 +157,32 @@ public class AuthController {
         return success(true);
     }
 
+    @Resource
+    private NgiamCasService ngiamCasService;
+
     // ========== 社交登录相关 ==========
+
+    @GetMapping("/ngiam-config")
+    @PermitAll
+    @Operation(summary = "获取当前租户 IAM 登录可用状态和固定回调地址")
+    public CommonResult<NgiamConfigRespVO> getNgiamConfig() {
+        return success(ngiamCasService.getPublicConfig());
+    }
 
     @GetMapping("/social-auth-redirect")
     @PermitAll
     @Operation(summary = "社交授权的跳转")
     @Parameters({
             @Parameter(name = "type", description = "社交类型", required = true),
-            @Parameter(name = "redirectUri", description = "回调路径")
+            @Parameter(name = "redirectUri", description = "回调路径"),
+            @Parameter(name = "returnPath", description = "IAM 登录成功后的站内路径，默认 /，其他社交类型忽略")
     })
     public CommonResult<String> socialLogin(@RequestParam("type") Integer type,
-                                            @RequestParam("redirectUri") String redirectUri) {
+                                            @RequestParam("redirectUri") String redirectUri,
+                                            @RequestParam(value = "returnPath", defaultValue = "/") String returnPath) {
+        if (SocialTypeEnum.NGIAM_CAS.getType().equals(type)) {
+            return success(ngiamCasService.authorize(UserTypeEnum.ADMIN.getValue(), redirectUri, returnPath));
+        }
         return success(socialClientService.getAuthorizeUrl(
                 type, UserTypeEnum.ADMIN.getValue(), redirectUri));
     }
