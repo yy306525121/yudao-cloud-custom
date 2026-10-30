@@ -1,9 +1,8 @@
 package cn.iocoder.yudao.framework.encrypt.core.filter;
 
-import cn.hutool.crypto.asymmetric.AsymmetricEncryptor;
-import cn.hutool.crypto.asymmetric.KeyType;
-import cn.hutool.crypto.symmetric.SymmetricEncryptor;
-import cn.iocoder.yudao.framework.encrypt.config.ApiEncryptProperties;
+import cn.iocoder.yudao.framework.encrypt.core.FieldCrypto;
+import cn.iocoder.yudao.framework.encrypt.core.FieldPaths;
+
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,29 +28,25 @@ public class ApiEncryptResponseWrapper extends HttpServletResponseWrapper {
         super(response);
         this.byteArrayOutputStream = new ByteArrayOutputStream();
         this.servletOutputStream = this.getOutputStream();
-        this.printWriter = new PrintWriter(new OutputStreamWriter(byteArrayOutputStream));
+        this.printWriter = new PrintWriter(new OutputStreamWriter(byteArrayOutputStream, java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    public void encrypt(ApiEncryptProperties properties,
-                        SymmetricEncryptor symmetricEncryptor,
-                        AsymmetricEncryptor asymmetricEncryptor) throws IOException {
-        // 1.1 清空 body
+    public void encrypt(FieldCrypto crypto,
+                        String[] fields) throws IOException {
         HttpServletResponse response = (HttpServletResponse) this.getResponse();
-        response.resetBuffer();
-        // 1.2 获取 body
         this.flushBuffer();
         byte[] body = byteArrayOutputStream.toByteArray();
-
-        // 2. 添加加密 header 标识
-        this.addHeader(properties.getHeader(), "true");
-        // 特殊：特殊：https://juejin.cn/post/6867327674675625992
-        this.addHeader("Access-Control-Expose-Headers", properties.getHeader());
-
-        // 3.1 加密 body
-        String encryptedBody = symmetricEncryptor != null ? symmetricEncryptor.encryptBase64(body)
-                : asymmetricEncryptor.encryptBase64(body, KeyType.PublicKey);
-        // 3.2 输出加密后的 body：（设置 header 要放在 response 的 write 之前）
-        response.getWriter().write(encryptedBody);
+        if (body.length == 0) return;
+        String contentType = getContentType();
+        if (contentType == null || !(contentType.toLowerCase(java.util.Locale.ROOT).contains("application/json")
+                || contentType.toLowerCase(java.util.Locale.ROOT).contains("+json"))) {
+            throw new IllegalArgumentException("字段加密仅支持 JSON 响应");
+        }
+        byte[] encrypted = FieldPaths.transform(body, fields, crypto::encrypt);
+        response.resetBuffer();
+        response.setCharacterEncoding("UTF-8");
+        response.setContentLength(encrypted.length);
+        response.getOutputStream().write(encrypted);
     }
 
     @Override
@@ -71,8 +66,20 @@ public class ApiEncryptResponseWrapper extends HttpServletResponseWrapper {
 
     @Override
     public void reset() {
+        super.reset();
         byteArrayOutputStream.reset();
     }
+
+    @Override
+    public void resetBuffer() {
+        byteArrayOutputStream.reset();
+    }
+
+    @Override
+    public void setContentLength(int length) { }
+
+    @Override
+    public void setContentLengthLong(long length) { }
 
     @Override
     public ServletOutputStream getOutputStream() {
@@ -80,7 +87,7 @@ public class ApiEncryptResponseWrapper extends HttpServletResponseWrapper {
 
             @Override
             public boolean isReady() {
-                return false;
+                return true;
             }
 
             @Override

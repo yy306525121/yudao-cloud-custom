@@ -1,15 +1,8 @@
 package cn.iocoder.yudao.framework.encrypt.core.filter;
 
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.SecureUtil;
-import cn.hutool.crypto.asymmetric.AsymmetricDecryptor;
-import cn.hutool.crypto.asymmetric.AsymmetricEncryptor;
-import cn.hutool.crypto.symmetric.SymmetricDecryptor;
-import cn.hutool.crypto.symmetric.SymmetricEncryptor;
-import cn.iocoder.yudao.framework.common.pojo.CommonResult;
-import cn.iocoder.yudao.framework.common.util.object.ObjectUtils;
 import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
 import cn.iocoder.yudao.framework.encrypt.config.ApiEncryptProperties;
+import cn.iocoder.yudao.framework.encrypt.core.FieldCrypto;
 import cn.iocoder.yudao.framework.encrypt.core.annotation.ApiEncrypt;
 import cn.iocoder.yudao.framework.web.config.WebProperties;
 import cn.iocoder.yudao.framework.web.core.filter.ApiRequestFilter;
@@ -19,7 +12,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpMethod;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -43,84 +35,56 @@ import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionU
 @Slf4j
 public class ApiEncryptFilter extends ApiRequestFilter {
 
-    private final ApiEncryptProperties apiEncryptProperties;
-
     private final RequestMappingHandlerMapping requestMappingHandlerMapping;
 
     private final GlobalExceptionHandler globalExceptionHandler;
 
-    private final SymmetricDecryptor requestSymmetricDecryptor;
-    private final AsymmetricDecryptor requestAsymmetricDecryptor;
+    private final FieldCrypto crypto;
 
-    private final SymmetricEncryptor responseSymmetricEncryptor;
-    private final AsymmetricEncryptor responseAsymmetricEncryptor;
-
-    public ApiEncryptFilter(WebProperties webProperties,
-                            ApiEncryptProperties apiEncryptProperties,
-                            RequestMappingHandlerMapping requestMappingHandlerMapping,
-                            GlobalExceptionHandler globalExceptionHandler) {
+    public ApiEncryptFilter(WebProperties webProperties, ApiEncryptProperties properties,
+                            RequestMappingHandlerMapping mapping, GlobalExceptionHandler handler) {
         super(webProperties);
-        this.apiEncryptProperties = apiEncryptProperties;
-        this.requestMappingHandlerMapping = requestMappingHandlerMapping;
-        this.globalExceptionHandler = globalExceptionHandler;
-        if (StrUtil.equalsIgnoreCase(apiEncryptProperties.getAlgorithm(), "AES")) {
-            this.requestSymmetricDecryptor = SecureUtil.aes(StrUtil.utf8Bytes(apiEncryptProperties.getRequestKey()));
-            this.requestAsymmetricDecryptor = null;
-            this.responseSymmetricEncryptor = SecureUtil.aes(StrUtil.utf8Bytes(apiEncryptProperties.getResponseKey()));
-            this.responseAsymmetricEncryptor = null;
-        } else if (StrUtil.equalsIgnoreCase(apiEncryptProperties.getAlgorithm(), "RSA")) {
-            this.requestSymmetricDecryptor = null;
-            this.requestAsymmetricDecryptor = SecureUtil.rsa(apiEncryptProperties.getRequestKey(), null);
-            this.responseSymmetricEncryptor = null;
-            this.responseAsymmetricEncryptor = SecureUtil.rsa(null, apiEncryptProperties.getResponseKey());
-        } else {
-            // 补充说明：如果要支持 SM2、SM4 等算法，可在此处增加对应实例的创建，并添加相应的 Maven 依赖即可。
-            throw new IllegalArgumentException("不支持的加密算法：" + apiEncryptProperties.getAlgorithm());
-        }
+        this.requestMappingHandlerMapping = mapping;
+        this.globalExceptionHandler = handler;
+        this.crypto = new FieldCrypto(properties);
     }
 
     @Override
     @SuppressWarnings("NullableProblems")
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        // 获取 @ApiEncrypt 注解
-        ApiEncrypt apiEncrypt = getApiEncrypt(request);
-        boolean requestEnable = apiEncrypt != null && apiEncrypt.request();
-        boolean responseEnable = apiEncrypt != null && apiEncrypt.response();
-        String encryptHeader = request.getHeader(apiEncryptProperties.getHeader());
-        if (!requestEnable && !responseEnable && StrUtil.isBlank(encryptHeader))  {
+        ApiEncrypt annotation = getApiEncrypt(request);
+        if (annotation == null || (annotation.requestFields().length == 0 && annotation.responseFields().length == 0)) {
             chain.doFilter(request, response);
             return;
         }
-
-        // 1. 解密请求
-        if (ObjectUtils.equalsAny(HttpMethod.valueOf(request.getMethod()),
-                HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)) {
+        if (annotation.requestFields().length > 0) {
             try {
-                if (StrUtil.isNotBlank(encryptHeader)) {
-                    request = new ApiDecryptRequestWrapper(request,
-                            requestSymmetricDecryptor, requestAsymmetricDecryptor);
-                } else if (requestEnable) {
-                    throw invalidParamException("请求未包含加密标头，请检查是否正确配置了加密标头");
+                String type = request.getContentType();
+                if (type == null || !(type.toLowerCase(java.util.Locale.ROOT).contains("application/json")
+                        || type.toLowerCase(java.util.Locale.ROOT).contains("+json"))) {
+                    throw new IllegalArgumentException("字段解密仅支持 JSON 请求体");
                 }
+                request = new ApiDecryptRequestWrapper(request, crypto, annotation.requestFields());
             } catch (Exception ex) {
-                CommonResult<?> result = globalExceptionHandler.allExceptionHandler(request, ex);
-                ServletUtils.writeJSON(response, result);
+                ServletUtils.writeJSON(response, globalExceptionHandler.allExceptionHandler(request,
+                        invalidParamException("请求字段解密失败，请检查字段类型、密文和加密配置")));
                 return;
             }
         }
-
-        // 2. 执行过滤器链
-        if (responseEnable) {
-            // 特殊：仅包装，最后执行。目的：Response 内容可以被重复读取！！！
-            response = new ApiEncryptResponseWrapper(response);
+        if (annotation.responseFields().length == 0) {
+            chain.doFilter(request, response);
+            return;
         }
-        chain.doFilter(request, response);
-
-        // 3. 加密响应（真正执行）
-        if (responseEnable) {
-            ((ApiEncryptResponseWrapper) response).encrypt(apiEncryptProperties,
-                    responseSymmetricEncryptor, responseAsymmetricEncryptor);
+        ApiEncryptResponseWrapper wrapper = new ApiEncryptResponseWrapper(response);
+        chain.doFilter(request, wrapper);
+        try {
+            wrapper.encrypt(crypto, annotation.responseFields());
+        } catch (Exception ex) {
+            response.resetBuffer();
+            response.setHeader("Content-Length", null);
+            ServletUtils.writeJSON(response, globalExceptionHandler.allExceptionHandler(request,
+                    new IllegalStateException("响应字段加密失败")));
         }
     }
 

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.system.controller.admin.auth;
 
+import cn.iocoder.yudao.framework.encrypt.core.annotation.ApiEncrypt;
 import cn.iocoder.yudao.module.system.service.social.NgiamCasService;
 import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import cn.hutool.core.collection.CollUtil;

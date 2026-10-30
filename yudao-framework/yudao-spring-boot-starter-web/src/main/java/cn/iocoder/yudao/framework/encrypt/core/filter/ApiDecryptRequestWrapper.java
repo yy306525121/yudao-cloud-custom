@@ -1,10 +1,9 @@
 package cn.iocoder.yudao.framework.encrypt.core.filter;
 
+import cn.iocoder.yudao.framework.encrypt.core.FieldCrypto;
+import cn.iocoder.yudao.framework.encrypt.core.FieldPaths;
+
 import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.asymmetric.AsymmetricDecryptor;
-import cn.hutool.crypto.asymmetric.KeyType;
-import cn.hutool.crypto.symmetric.SymmetricDecryptor;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,21 +24,16 @@ public class ApiDecryptRequestWrapper extends HttpServletRequestWrapper {
     private final byte[] body;
 
     public ApiDecryptRequestWrapper(HttpServletRequest request,
-                                    SymmetricDecryptor symmetricDecryptor,
-                                    AsymmetricDecryptor asymmetricDecryptor) throws IOException {
+                                    FieldCrypto crypto,
+                                    String[] fields) throws IOException {
         super(request);
-        // 读取 body，允许 HEX、BASE64 传输
-        String requestBody = StrUtil.utf8Str(
-                IoUtil.readBytes(request.getInputStream(), false));
-
-        // 解密 body
-        body = symmetricDecryptor != null ? symmetricDecryptor.decrypt(requestBody)
-                : asymmetricDecryptor.decrypt(requestBody, KeyType.PrivateKey);
+        body = FieldPaths.transform(
+                IoUtil.readBytes(request.getInputStream(), false), fields, crypto::decrypt);
     }
 
     @Override
     public BufferedReader getReader() {
-        return new BufferedReader(new InputStreamReader(this.getInputStream()));
+        return new BufferedReader(new InputStreamReader(this.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @Override
@@ -64,17 +58,17 @@ public class ApiDecryptRequestWrapper extends HttpServletRequestWrapper {
 
             @Override
             public int available() {
-                return body.length;
+                return stream.available();
             }
 
             @Override
             public boolean isFinished() {
-                return false;
+                return stream.available() == 0;
             }
 
             @Override
             public boolean isReady() {
-                return false;
+                return true;
             }
 
             @Override

@@ -10,14 +10,10 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ApiEncrypt {
 
-    /**
-     * 是否对请求参数进行解密，默认 true
-     */
-    boolean request() default true;
+    /** 相对于 JSON 请求体的字符串字段路径，例如 mobile、items[*].mobile。 */
+    String[] requestFields() default {};
 
-    /**
-     * 是否对响应结果进行加密，默认 true
-     */
-    boolean response() default true;
+    /** 相对于完整 JSON 响应的字段路径，例如 data.mobile。 */
+    String[] responseFields() default {};
 
 }
