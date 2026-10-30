@@ -17,6 +17,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.84</version>
+        </dependency>
+        <dependency>
             <groupId>cn.iocoder.cloud</groupId>
             <artifactId>yudao-common</artifactId>
         </dependency>
