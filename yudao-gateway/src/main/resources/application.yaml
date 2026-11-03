@@ -320,5 +320,11 @@ knife4j:
 --- #################### 芋道相关配置 ####################
 
 yudao:
+  web:
+    cors:
+      # 空列表兼容放行；非空时精确匹配协议、域名/IP、端口，不支持通配符。修改后重启生效。
+      # 网关和各后端应用需分别配置相同白名单（也可配置在各自的 Nacos 中）。
+      # allowed-origins: ["https://admin.example.com", "http://localhost:3000"]
+      allowed-origins: []
   info:
     version: 1.0.0
