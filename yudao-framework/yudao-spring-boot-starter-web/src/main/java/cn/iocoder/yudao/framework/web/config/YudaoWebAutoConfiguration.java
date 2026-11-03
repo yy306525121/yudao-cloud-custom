@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.framework.web.config;
 
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.pojo.CorsProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import cn.iocoder.yudao.framework.common.biz.infra.logger.ApiErrorLogCommonApi;
 import cn.iocoder.yudao.framework.common.enums.WebFilterOrderEnum;
 import cn.iocoder.yudao.framework.web.core.filter.CacheRequestBodyFilter;
@@ -102,6 +104,12 @@ public class YudaoWebAutoConfiguration {
         return new WebFrameworkUtils(webProperties);
     }
 
+    @Bean
+    @ConfigurationProperties(prefix = "yudao.web.cors")
+    public CorsProperties corsProperties() {
+        return new CorsProperties();
+    }
+
     // ========== Filter 相关 ==========
 
     /**
@@ -109,11 +117,15 @@ public class YudaoWebAutoConfiguration {
      */
     @Bean
     @Order(value = WebFilterOrderEnum.CORS_FILTER) // 特殊：修复因执行顺序影响到跨域配置不生效问题
-    public FilterRegistrationBean<CorsFilter> corsFilterBean() {
+    public FilterRegistrationBean<CorsFilter> corsFilterBean(CorsProperties corsProperties) {
         // 创建 CorsConfiguration 对象
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("*"); // 设置访问源地址
+        if (corsProperties.getAllowedOrigins().isEmpty()) {
+            config.addAllowedOriginPattern("*"); // 未配置时兼容原有行为
+        } else {
+            config.setAllowedOrigins(corsProperties.getAllowedOrigins());
+        }
         config.addAllowedHeader("*"); // 设置访问源请求头
         config.addAllowedMethod("*"); // 设置访问源请求方法
         // 创建 UrlBasedCorsConfigurationSource 对象
