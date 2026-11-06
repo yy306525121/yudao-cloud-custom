@@ -2341,6 +2341,8 @@ INSERT INTO system_dict_data (id, sort, label, value, dict_type, status, color_t
 GO
 INSERT INTO system_dict_data (id, sort, label, value, dict_type, status, color_type, css_class, remark, creator, create_time, updater, update_time, deleted) VALUES (109, 20, N'S3 对象存储', N'20', N'infra_file_storage', 0, N'default', N'', NULL, N'1', N'2022-03-15 00:26:31', N'1', N'2026-08-14 01:49:42', N'0')
 GO
+INSERT INTO system_dict_data (id, sort, label, value, dict_type, status, color_type, css_class, remark, creator, create_time, updater, update_time, deleted) VALUES (1834, 21, N'阿里云 OSS', N'21', N'infra_file_storage', 0, N'default', N'', N'文件存储器 - 阿里云 OSS', N'1', N'2026-11-06 00:00:00', N'1', N'2026-11-06 00:00:00', N'0')
+GO
 INSERT INTO system_dict_data (id, sort, label, value, dict_type, status, color_type, css_class, remark, creator, create_time, updater, update_time, deleted) VALUES (110, 103, N'短信登录', N'103', N'system_login_type', 0, N'default', N'', NULL, N'1', N'2022-05-09 23:57:58', N'1', N'2026-08-14 01:49:42', N'0')
 GO
 INSERT INTO system_dict_data (id, sort, label, value, dict_type, status, color_type, css_class, remark, creator, create_time, updater, update_time, deleted) VALUES (111, 1, N'password', N'password', N'system_oauth2_grant_type', 0, N'default', N'', N'密码模式', N'1', N'2022-05-12 00:22:05', N'1', N'2026-08-14 01:49:42', N'0')
