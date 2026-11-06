@@ -16,7 +16,7 @@ public class FileUploadReqVO {
     @NotNull(message = "文件附件不能为空")
     private MultipartFile file;
 
-    @Schema(description = "文件目录", example = "XXX/YYY")
+    @Schema(description = "文件目录，阿里云 OSS 固定使用 upload/pic", example = "XXX/YYY")
     private String directory;
 
     @AssertTrue(message = "文件目录不正确")

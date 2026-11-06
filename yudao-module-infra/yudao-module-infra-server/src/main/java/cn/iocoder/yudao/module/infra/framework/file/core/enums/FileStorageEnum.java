@@ -3,6 +3,8 @@ package cn.iocoder.yudao.module.infra.framework.file.core.enums;
 import cn.hutool.core.util.ArrayUtil;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientConfig;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.db.DBFileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.db.DBFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.ftp.FtpFileClient;
@@ -32,6 +34,7 @@ public enum FileStorageEnum {
     SFTP(12, SftpFileClientConfig.class, SftpFileClient.class),
 
     S3(20, S3FileClientConfig.class, S3FileClient.class),
+    ALIYUN_OSS(21, AliyunOssFileClientConfig.class, AliyunOssFileClient.class),
     ;
 
     /**

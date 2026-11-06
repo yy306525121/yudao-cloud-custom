@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.infra.service.file;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
@@ -14,9 +15,12 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FileCreateReqVO;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FilePageReqVO;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FilePresignedUrlRespVO;
+import cn.iocoder.yudao.module.infra.dal.dataobject.file.FileConfigDO;
 import cn.iocoder.yudao.module.infra.dal.dataobject.file.FileDO;
 import cn.iocoder.yudao.module.infra.dal.mysql.file.FileMapper;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.utils.FilePathUtils;
 import cn.iocoder.yudao.module.infra.framework.file.core.utils.FileTypeUtils;
 import com.google.common.annotations.VisibleForTesting;
@@ -122,11 +126,12 @@ public class FileServiceImpl implements FileService {
             }
         }
 
-        // 2.1 生成上传的 path，需要保证唯一
-        String path = generateUploadPath(name, directory);
-        // 2.2 上传到文件存储器
+        // 2.1 按存储类型生成最终路径，上传与数据库记录共用同一个 path
         FileClient client = fileConfigService.getMasterFileClient();
         Assert.notNull(client, "客户端(master) 不能为空");
+        String path = client instanceof AliyunOssFileClient
+                ? AliyunOssFileClient.generateUploadPath(name) : generateUploadPath(name, directory);
+        // 2.2 上传到文件存储器
         String url = client.upload(content, path, type);
 
         // 3. 保存到数据库
@@ -210,7 +215,23 @@ public class FileServiceImpl implements FileService {
             throw exception(FILE_TYPE_NOT_ALLOWED);
         }
         createReqVO.setType(type);
-        // 1.3 处理 URL 的合法性，移除 URL 中的查询参数（例如签名参数），保证 URL 的唯一性
+        // 1.3 阿里云 OSS 配置了扩展名白名单时，读取已上传文件校验内容，防止前端直传绕过类型限制
+        FileConfigDO fileConfig = fileConfigService.getFileConfig(createReqVO.getConfigId());
+        if (fileConfig != null && fileConfig.getConfig() instanceof AliyunOssFileClientConfig aliyunConfig
+                && CollUtil.isNotEmpty(aliyunConfig.getAllowedFileExtensions())) {
+            FileClient client = fileConfigService.getFileClient(createReqVO.getConfigId());
+            Assert.isInstanceOf(AliyunOssFileClient.class, client);
+            AliyunOssFileClient aliyunClient = (AliyunOssFileClient) client;
+            byte[] content;
+            try {
+                content = aliyunClient.getContent(createReqVO.getPath());
+            } catch (Exception ex) {
+                throw exception(FILE_CONTENT_READ_FAILED);
+            }
+            aliyunClient.validateUpload(content, createReqVO.getPath());
+            aliyunClient.validateUpload(content, createReqVO.getName());
+        }
+        // 1.4 处理 URL 的合法性，移除 URL 中的查询参数（例如签名参数），保证 URL 的唯一性
         createReqVO.setUrl(HttpUtils.removeUrlQuery(createReqVO.getUrl())); // 目的：移除私有桶情况下，URL 的签名参数
 
         // 2. 保存到数据库

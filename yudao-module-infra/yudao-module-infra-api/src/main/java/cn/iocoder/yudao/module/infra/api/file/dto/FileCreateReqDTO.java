@@ -12,7 +12,7 @@ public class FileCreateReqDTO {
     @Schema(description = "原文件名称", example = "xxx.png")
     private String name;
 
-    @Schema(description = "文件目录", example = "xxx")
+    @Schema(description = "文件目录，阿里云 OSS 固定使用 upload/pic", example = "xxx")
     private String directory;
 
     @Schema(description = "文件的 MIME 类型", example = "image/png")

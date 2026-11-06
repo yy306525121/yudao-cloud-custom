@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.infra.dal.mysql.file.FileConfigMapper;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientFactory;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.enums.FileStorageEnum;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -192,7 +193,11 @@ public class FileConfigServiceImpl implements FileConfigService {
         validateFileConfigExists(id);
         // 上传文件
         byte[] content = ResourceUtil.readBytes("file/erweima.jpg");
-        return getFileClient(id).upload(content, "public" + StrUtil.SLASH + IdUtil.fastSimpleUUID() + ".jpg", "image/jpeg");
+        FileClient client = getFileClient(id);
+        String path = client instanceof AliyunOssFileClient
+                ? AliyunOssFileClient.generateUploadPath("erweima.jpg")
+                : "public" + StrUtil.SLASH + IdUtil.fastSimpleUUID() + ".jpg";
+        return client.upload(content, path, "image/jpeg");
     }
 
     @Override

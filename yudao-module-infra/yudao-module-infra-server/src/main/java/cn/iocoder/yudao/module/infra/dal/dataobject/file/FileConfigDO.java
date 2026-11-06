@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
 import cn.iocoder.yudao.framework.tenant.core.aop.TenantIgnore;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientConfig;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.db.DBFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.ftp.FtpFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.local.LocalFileClientConfig;
@@ -98,6 +99,8 @@ public class FileConfigDO extends BaseDO {
                     return JsonUtils.parseObject2(json, SftpFileClientConfig.class);
                 case "S3FileClientConfig":
                     return JsonUtils.parseObject2(json, S3FileClientConfig.class);
+                case "AliyunOssFileClientConfig":
+                    return JsonUtils.parseObject2(json, AliyunOssFileClientConfig.class);
                 default:
                     throw new IllegalArgumentException("未知的 FileClientConfig 类型：" + json);
             }

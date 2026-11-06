@@ -9,21 +9,34 @@ import cn.iocoder.yudao.module.infra.controller.admin.file.vo.config.FileConfigP
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.config.FileConfigSaveReqVO;
 import cn.iocoder.yudao.module.infra.dal.dataobject.file.FileConfigDO;
 import cn.iocoder.yudao.module.infra.dal.mysql.file.FileConfigMapper;
+import cn.iocoder.yudao.module.infra.framework.file.core.aliyun.AliyunOssFileTypeTest;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClientFactory;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.local.LocalFileClient;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.local.LocalFileClientConfig;
 import cn.iocoder.yudao.module.infra.framework.file.core.enums.FileStorageEnum;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.ObjectMetadata;
 import jakarta.annotation.Resource;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import lombok.Data;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.InputStream;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static cn.hutool.core.util.RandomUtil.randomEle;
@@ -37,6 +50,7 @@ import static cn.iocoder.yudao.module.infra.enums.ErrorCodeConstants.FILE_CONFIG
 import static cn.iocoder.yudao.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_NOT_EXISTS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.*;
 
 /**
@@ -218,6 +232,90 @@ public class FileConfigServiceImplTest extends BaseDbUnitTest {
 
         // 调用，并断言
         assertEquals("https://www.iocoder.cn", fileConfigService.testFileConfig(id));
+        verify(fileClient).upload(any(), matches("public/[0-9a-f]{32}\\.jpg"), eq("image/jpeg"));
+    }
+
+    @Test
+    public void testFileConfig_aliyunUsesFixedDirectory() throws Exception {
+        AliyunOssFileClientConfig config = new AliyunOssFileClientConfig()
+                .setEndpoint("oss-cn-hangzhou.aliyuncs.com")
+                .setAccessKeyId("test-id").setAccessKeySecret("test-secret").setBucketName("demo-bucket");
+        FileConfigDO dbConfig = randomFileConfigDO().setMaster(false)
+                .setStorage(FileStorageEnum.ALIYUN_OSS.getStorage()).setConfig(config);
+        fileConfigMapper.insert(dbConfig);
+        AliyunOssFileClient client = mock(AliyunOssFileClient.class);
+        when(fileClientFactory.getFileClient(dbConfig.getId())).thenReturn(client);
+        when(client.upload(any(), anyString(), anyString()))
+                .thenAnswer(invocation -> "https://files.example.com/" + invocation.getArgument(1));
+
+        String url = fileConfigService.testFileConfig(dbConfig.getId());
+        assertTrue(url.matches("https://files\\.example\\.com/upload/pic/erweima_[0-9a-f]{32}\\.jpg"));
+        verify(client).upload(any(), eq(url.substring("https://files.example.com/".length())), eq("image/jpeg"));
+    }
+
+    @Test
+    public void testAllowedExtensions_saveUpdateAndClearRefreshCache() {
+        FileConfigSaveReqVO request = allowedTypesRequest(List.of(" JPG ", "PNG", "jpg"));
+        Long id = fileConfigService.createFileConfig(request);
+        AliyunOssFileClientConfig saved = (AliyunOssFileClientConfig) fileConfigService.getFileConfig(id).getConfig();
+        assertEquals(List.of("jpg", "png"), saved.getAllowedFileExtensions());
+
+        fileConfigService.updateFileConfigMaster(id);
+        when(fileClientFactory.getFileClient(id)).thenReturn(mock(AliyunOssFileClient.class));
+        fileConfigService.getFileClient(id);
+        fileConfigService.getMasterFileClient();
+        fileConfigService.updateFileConfig(allowedTypesRequest(List.of("pdf")).setId(id));
+        assertNull(fileConfigService.getClientCache().getIfPresent(id));
+        assertNull(fileConfigService.getClientCache().getIfPresent(0L));
+        assertEquals(List.of("pdf"), ((AliyunOssFileClientConfig) fileConfigService.getFileConfig(id).getConfig()).getAllowedFileExtensions());
+
+        fileConfigService.getFileClient(id);
+        fileConfigService.getMasterFileClient();
+        fileConfigService.updateFileConfig(allowedTypesRequest(List.of()).setId(id));
+        assertNull(fileConfigService.getClientCache().getIfPresent(id));
+        assertNull(fileConfigService.getClientCache().getIfPresent(0L));
+        assertTrue(((AliyunOssFileClientConfig) fileConfigService.getFileConfig(id).getConfig()).getAllowedFileExtensions().isEmpty());
+    }
+
+    @Test
+    public void testAllowedExtensions_invalidSaveDoesNotInsert() {
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            ReflectionTestUtils.setField(fileConfigService, "validator", factory.getValidator());
+            try {
+                assertThrows(ConstraintViolationException.class,
+                        () -> fileConfigService.createFileConfig(allowedTypesRequest(List.of("exe"))));
+                assertEquals(0L, fileConfigMapper.selectCount());
+            } finally {
+                ReflectionTestUtils.setField(fileConfigService, "validator", validator);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"jpg", "pdf"})
+    public void testConfigTest_obeysAllowedExtensions(String extension) throws Exception {
+        Long id = fileConfigService.createFileConfig(allowedTypesRequest(List.of(extension)));
+        OSS oss = mock(OSS.class);
+        when(fileClientFactory.getFileClient(id)).thenReturn(AliyunOssFileTypeTest.client(oss, List.of(extension)));
+        if ("jpg".equals(extension)) {
+            assertTrue(fileConfigService.testFileConfig(id).contains("/upload/pic/erweima_"));
+            verify(oss).putObject(eq("demo-bucket"), matches("upload/pic/erweima_[0-9a-f]{32}\\.jpg"),
+                    any(InputStream.class), any(ObjectMetadata.class));
+        } else {
+            var failure = assertThrows(cn.iocoder.yudao.framework.common.exception.ServiceException.class,
+                    () -> fileConfigService.testFileConfig(id));
+            assertEquals(cn.iocoder.yudao.module.infra.enums.ErrorCodeConstants.FILE_EXTENSION_NOT_ALLOWED.getCode(), failure.getCode());
+            assertTrue(failure.getMessage().contains("jpg"));
+            assertTrue(failure.getMessage().contains("pdf"));
+            verifyNoInteractions(oss);
+        }
+    }
+
+    private FileConfigSaveReqVO allowedTypesRequest(List<String> extensions) {
+        Map<String, Object> config = new HashMap<>(Map.of("endpoint", "oss-cn-hangzhou.aliyuncs.com",
+                "accessKeyId", "test-id", "accessKeySecret", "test-secret", "bucketName", "demo-bucket"));
+        config.put("allowedFileExtensions", extensions);
+        return new FileConfigSaveReqVO().setName("OSS type restriction").setStorage(21).setConfig(config);
     }
 
     @Test
