@@ -23,6 +23,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `pay_app`;
 CREATE TABLE `pay_app`  (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '应用编号',
+  `app_key` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '应用标识',
   `name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '应用名',
   `status` tinyint NOT NULL COMMENT '开启状态',
   `remark` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
@@ -105,6 +106,37 @@ BEGIN;
 COMMIT;
 
 -- ----------------------------
+-- Table structure for pay_demo_withdraw
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_demo_withdraw`;
+CREATE TABLE `pay_demo_withdraw`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '提现单编号',
+  `subject` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '提现标题',
+  `price` int NOT NULL COMMENT '提现金额，单位：分',
+  `user_account` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收款人账号',
+  `user_name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收款人姓名',
+  `type` tinyint NOT NULL COMMENT '提现方式',
+  `status` tinyint NOT NULL COMMENT '提现状态',
+  `pay_transfer_id` bigint NULL DEFAULT NULL COMMENT '转账单编号',
+  `transfer_channel_code` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '转账渠道',
+  `transfer_time` datetime NULL DEFAULT NULL COMMENT '转账成功时间',
+  `transfer_error_msg` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '转账错误提示',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '示例提现单';
+
+-- ----------------------------
+-- Records of pay_demo_withdraw
+-- ----------------------------
+BEGIN;
+COMMIT;
+
+-- ----------------------------
 -- Table structure for pay_notify_log
 -- ----------------------------
 DROP TABLE IF EXISTS `pay_notify_log`;
@@ -140,6 +172,7 @@ CREATE TABLE `pay_notify_task`  (
   `data_id` bigint NOT NULL COMMENT '数据编号',
   `status` tinyint NOT NULL COMMENT '通知状态',
   `merchant_order_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商户订单编号',
+  `merchant_refund_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商户退款编号',
   `merchant_transfer_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商户转账单编号',
   `next_notify_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下一次通知时间',
   `last_execute_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后一次执行时间',
@@ -170,6 +203,8 @@ CREATE TABLE `pay_order`  (
   `app_id` bigint NOT NULL COMMENT '应用编号',
   `channel_id` bigint NULL DEFAULT NULL COMMENT '渠道编号',
   `channel_code` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '渠道编码',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户编号',
+  `user_type` tinyint NULL DEFAULT NULL COMMENT '用户类型',
   `merchant_order_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商户订单编号',
   `subject` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品标题',
   `body` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品描述',
@@ -244,6 +279,8 @@ CREATE TABLE `pay_refund`  (
   `channel_code` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '渠道编码',
   `order_id` bigint NOT NULL COMMENT '支付订单编号 pay_order 表id',
   `order_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '支付订单 no',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户编号',
+  `user_type` tinyint NULL DEFAULT NULL COMMENT '用户类型',
   `merchant_order_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商户订单编号（商户系统生成）',
   `merchant_refund_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商户退款订单号（商户系统生成）',
   `notify_url` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '异步通知商户地址',
@@ -269,6 +306,48 @@ CREATE TABLE `pay_refund`  (
 
 -- ----------------------------
 -- Records of pay_refund
+-- ----------------------------
+BEGIN;
+COMMIT;
+
+-- ----------------------------
+-- Table structure for pay_transfer
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_transfer`;
+CREATE TABLE `pay_transfer`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '转账单号',
+  `app_id` bigint NOT NULL COMMENT '应用编号',
+  `channel_id` bigint NOT NULL COMMENT '转账渠道编号',
+  `channel_code` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '转账渠道编码',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户编号',
+  `user_type` tinyint NULL DEFAULT NULL COMMENT '用户类型',
+  `merchant_transfer_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商户转账单编号',
+  `subject` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '转账标题',
+  `price` int NOT NULL COMMENT '转账金额，单位：分',
+  `user_account` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '收款人账号',
+  `user_name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '收款人姓名',
+  `status` tinyint NOT NULL COMMENT '转账状态',
+  `success_time` datetime NULL DEFAULT NULL COMMENT '转账成功时间',
+  `notify_url` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '异步通知地址',
+  `user_ip` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户 IP',
+  `channel_extras` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '渠道的额外参数',
+  `channel_transfer_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '渠道转账单号',
+  `channel_error_code` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '调用渠道的错误码',
+  `channel_error_msg` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '调用渠道的错误提示',
+  `channel_notify_data` varchar(4096) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '渠道的同步/异步通知的内容',
+  `channel_package_info` varchar(2048) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '渠道 package 信息',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '转账单';
+
+-- ----------------------------
+-- Records of pay_transfer
 -- ----------------------------
 BEGIN;
 COMMIT;
