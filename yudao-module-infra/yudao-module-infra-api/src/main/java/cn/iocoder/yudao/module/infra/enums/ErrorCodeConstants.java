@@ -35,6 +35,9 @@ public interface ErrorCodeConstants {
     ErrorCode FILE_IS_EMPTY = new ErrorCode(1_001_003_002, "文件为空");
     ErrorCode FILE_PATH_INVALID = new ErrorCode(1_001_003_003, "文件路径不正确");
     ErrorCode FILE_TYPE_NOT_ALLOWED = new ErrorCode(1_001_003_004, "不支持的文件类型");
+    ErrorCode FILE_EXTENSION_NOT_ALLOWED = new ErrorCode(1_001_003_006, "文件 {} 的扩展名不允许上传，允许类型：{}");
+    ErrorCode FILE_CONTENT_TYPE_MISMATCH = new ErrorCode(1_001_003_007, "文件 {} 的内容与扩展名不一致或无法识别");
+    ErrorCode FILE_CONTENT_READ_FAILED = new ErrorCode(1_001_003_008, "无法读取 OSS 文件进行类型校验，请确认文件已上传且路径正确");
 
     // ========== 代码生成器 1-001-004-000 ==========
     ErrorCode CODEGEN_TABLE_EXISTS = new ErrorCode(1_001_004_002, "表定义已经存在");

@@ -1,6 +1,9 @@
 package cn.iocoder.yudao.module.infra.service.file;
 
+import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.crypto.digest.DigestUtil;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.ObjectUtils;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
@@ -8,23 +11,38 @@ import cn.iocoder.yudao.framework.test.core.util.AssertUtils;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FileCreateReqVO;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FilePageReqVO;
 import cn.iocoder.yudao.module.infra.controller.admin.file.vo.file.FilePresignedUrlRespVO;
+import cn.iocoder.yudao.module.infra.dal.dataobject.file.FileConfigDO;
 import cn.iocoder.yudao.module.infra.dal.dataobject.file.FileDO;
 import cn.iocoder.yudao.module.infra.dal.mysql.file.FileMapper;
+import cn.iocoder.yudao.module.infra.framework.file.core.aliyun.AliyunOssFileTypeTest;
 import cn.iocoder.yudao.module.infra.framework.file.core.client.FileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClient;
+import cn.iocoder.yudao.module.infra.framework.file.core.client.aliyun.AliyunOssFileClientConfig;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.OSSObject;
+import com.aliyun.oss.model.ObjectMetadata;
 import jakarta.annotation.Resource;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -152,6 +170,171 @@ public class FileServiceImplTest extends BaseDbUnitTest {
         assertEquals(url, file.getUrl());
         assertEquals(type, file.getType());
         assertEquals(content.length, file.getSize());
+    }
+
+    @Test
+    public void testCreateFile_aliyunPathMatchesObjectAndRecord() throws Exception {
+        OSS oss = mock(OSS.class);
+        when(fileConfigService.getMasterFileClient()).thenReturn(createAliyunClient(oss));
+        byte[] content = ResourceUtil.readBytes("file/erweima.jpg");
+        String name = "images.jpg";
+
+        String firstUrl = fileService.createFile(content, name, "other/directory", "image/jpeg");
+        String secondUrl = fileService.createFile(content, name, null, "image/jpeg");
+
+        ArgumentCaptor<String> paths = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<InputStream> streams = ArgumentCaptor.forClass(InputStream.class);
+        ArgumentCaptor<ObjectMetadata> metadata = ArgumentCaptor.forClass(ObjectMetadata.class);
+        verify(oss, times(2)).putObject(eq("demo-bucket"), paths.capture(), streams.capture(), metadata.capture());
+        assertNotEquals(firstUrl, secondUrl);
+        for (int i = 0; i < 2; i++) {
+            String path = paths.getAllValues().get(i);
+            String url = i == 0 ? firstUrl : secondUrl;
+            assertTrue(path.matches("upload/pic/images_[0-9a-f]{32}\\.jpg"));
+            assertEquals("https://files.example.com/oss/f/" + path, url);
+            FileDO file = fileMapper.selectOne(FileDO::getUrl, url);
+            assertNotNull(file);
+            assertEquals(path, file.getPath());
+            assertEquals(name, file.getName());
+            assertEquals(21L, file.getConfigId());
+            assertEquals("image/jpeg", file.getType());
+            assertEquals(content.length, file.getSize());
+            assertArrayEquals(content, IoUtil.readBytes(streams.getAllValues().get(i)));
+            assertEquals("image/jpeg", metadata.getAllValues().get(i).getContentType());
+            assertEquals(content.length, metadata.getAllValues().get(i).getContentLength());
+        }
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "images")
+    public void testCreateFile_aliyunMissingNameOrExtension(String name) throws Exception {
+        OSS oss = mock(OSS.class);
+        when(fileConfigService.getMasterFileClient()).thenReturn(AliyunOssFileTypeTest.client(oss, List.of("jpg")));
+        byte[] content = ResourceUtil.readBytes("file/erweima.jpg");
+
+        String url = fileService.createFile(content, name, "ignored", null);
+
+        FileDO file = fileMapper.selectOne(FileDO::getUrl, url);
+        assertNotNull(file);
+        String expectedBase = name == null || name.isEmpty()
+                ? DigestUtil.sha256Hex(content) : name;
+        assertEquals(expectedBase + ".jpg", file.getName());
+        assertTrue(file.getPath().matches("upload/pic/" + expectedBase + "_[0-9a-f]{32}\\.jpg"));
+        assertEquals("image/jpeg", file.getType());
+        verify(oss).putObject(eq("demo-bucket"), eq(file.getPath()), any(InputStream.class), any(ObjectMetadata.class));
+    }
+
+    @Test
+    public void testCreateFile_aliyunFailureDoesNotInsertRecord() throws Exception {
+        OSS oss = mock(OSS.class);
+        when(fileConfigService.getMasterFileClient()).thenReturn(createAliyunClient(oss));
+        RuntimeException failure = new RuntimeException("upload failed");
+        when(oss.putObject(anyString(), anyString(), any(InputStream.class), any(ObjectMetadata.class)))
+                .thenThrow(failure);
+        byte[] content = ResourceUtil.readBytes("file/erweima.jpg");
+
+        assertSame(failure, assertThrows(RuntimeException.class,
+                () -> fileService.createFile(content, "images.jpg", null, "image/jpeg")));
+        assertEquals(0L, fileMapper.selectCount());
+    }
+
+    @Test
+    public void testRestrictedUpload_extensionNotAllowedDoesNotWrite() throws Exception {
+        OSS oss = mock(OSS.class);
+        when(fileConfigService.getMasterFileClient()).thenReturn(AliyunOssFileTypeTest.client(oss, List.of("jpg")));
+        ServiceException failure = assertThrows(ServiceException.class,
+                () -> fileService.createFile(AliyunOssFileTypeTest.sample("png"), "photo.png", null, "image/png"));
+        assertEquals(FILE_EXTENSION_NOT_ALLOWED.getCode(), failure.getCode());
+        assertTrue(failure.getMessage().contains("允许类型：jpg"));
+        assertEquals(0L, fileMapper.selectCount());
+        verifyNoInteractions(oss);
+    }
+
+    @Test
+    public void testRestrictedUpload_contentMismatchDoesNotWrite() throws Exception {
+        OSS oss = mock(OSS.class);
+        when(fileConfigService.getMasterFileClient()).thenReturn(AliyunOssFileTypeTest.client(oss, List.of("jpg")));
+        // 将真实 PDF 伪装为 JPG，在写入 OSS 前被拒绝。
+        assertServiceException(() -> fileService.createFile(AliyunOssFileTypeTest.sample("pdf"),
+                "fake.jpg", null, "image/jpeg"), FILE_TYPE_NOT_ALLOWED);
+        assertEquals(0L, fileMapper.selectCount());
+        verifyNoInteractions(oss);
+    }
+
+    @Test
+    public void testRestrictedRecord_readsObjectBeforeInsert() throws Exception {
+        OSS oss = mock(OSS.class);
+        prepareRestrictedRecordClient(oss);
+        byte[] bytes = AliyunOssFileTypeTest.sample("jpg");
+        OSSObject object = new OSSObject();
+        object.setObjectContent(new ByteArrayInputStream(bytes));
+        when(oss.getObject("demo-bucket", "upload/pic/photo.jpg")).thenReturn(object);
+
+        Long id = fileService.createFile(recordRequest("upload/pic/photo.jpg", "photo.JPG"));
+        assertEquals("upload/pic/photo.jpg", fileMapper.selectById(id).getPath());
+        verify(oss).getObject("demo-bucket", "upload/pic/photo.jpg");
+        verifyNoMoreInteractions(oss);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "upload/pic/photo.png, photo.jpg",
+            "upload/pic/photo.jpg, photo.png",
+            "upload/pic/photo.pdf, photo.pdf"
+    })
+    public void testRestrictedRecord_pathAndNameCannotBypass(String path, String name) throws Exception {
+        OSS oss = mock(OSS.class);
+        prepareRestrictedRecordClient(oss);
+        OSSObject object = new OSSObject();
+        object.setObjectContent(new ByteArrayInputStream(AliyunOssFileTypeTest.sample("jpg")));
+        when(oss.getObject("demo-bucket", path)).thenReturn(object);
+
+        assertThrows(ServiceException.class, () -> fileService.createFile(recordRequest(path, name)));
+        assertEquals(0L, fileMapper.selectCount());
+    }
+
+    @Test
+    public void testRestrictedRecord_readFailureDoesNotInsert() {
+        OSS oss = mock(OSS.class);
+        prepareRestrictedRecordClient(oss);
+        when(oss.getObject("demo-bucket", "missing.jpg")).thenThrow(new IllegalStateException("missing object"));
+        assertServiceException(() -> fileService.createFile(recordRequest("missing.jpg", "photo.jpg")), FILE_CONTENT_READ_FAILED);
+        assertEquals(0L, fileMapper.selectCount());
+    }
+
+    @Test
+    public void testUnrestrictedRecord_doesNotReadObject() {
+        when(fileConfigService.getFileConfig(21L)).thenReturn(new FileConfigDO().setId(21L)
+                .setConfig(AliyunOssFileTypeTest.config(List.of())));
+        Long id = fileService.createFile(recordRequest("legacy.jpg", "legacy.jpg"));
+        assertNotNull(fileMapper.selectById(id));
+        verify(fileConfigService, never()).getFileClient(anyLong());
+    }
+
+    private void prepareRestrictedRecordClient(OSS oss) {
+        when(fileConfigService.getFileConfig(21L)).thenReturn(new FileConfigDO().setId(21L)
+                .setConfig(AliyunOssFileTypeTest.config(List.of("jpg", "pdf"))));
+        when(fileConfigService.getFileClient(21L)).thenReturn(AliyunOssFileTypeTest.client(oss, List.of("jpg", "pdf")));
+    }
+
+    private FileCreateReqVO recordRequest(String path, String name) {
+        return new FileCreateReqVO().setConfigId(21L).setPath(path).setName(name)
+                .setUrl("https://files.example.com/" + path).setType("image/jpeg").setSize(10L);
+    }
+
+    private AliyunOssFileClient createAliyunClient(OSS oss) {
+        AliyunOssFileClient client = new AliyunOssFileClient(21L, new AliyunOssFileClientConfig()
+                .setEndpoint("oss-cn-hangzhou.aliyuncs.com")
+                .setAccessKeyId("test-id").setAccessKeySecret("test-secret")
+                .setBucketName("demo-bucket").setDomain("https://files.example.com/oss/f/")) {
+            @Override
+            protected OSS createClient(String endpoint, String accessKeyId, String accessKeySecret) {
+                return oss;
+            }
+        };
+        client.init();
+        return client;
     }
 
     @Test
